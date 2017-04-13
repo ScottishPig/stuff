@@ -3,10 +3,10 @@
 const http = require('http');
 const fs = require('fs');
 
-const hostname = '127.0.0.1';
+const hostname = '0.0.0.0';
 const port = 3000;
 
-var data = {'test': 'test2'};
+var data = { };
 
 const helpString = '<html><head></head><body><p>' +
 'Commands:</p> <ul><li>/add?key=value - add or modify a key' +
