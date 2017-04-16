@@ -1,22 +1,17 @@
-
-//TODO: userToken should live in a cookie for persistent
-// login across pages and userNameMode should be keyed off
-// the existence / validity of that cookie.
-
 var server = 'http://127.0.0.1:3000/';
 var userNameMode = true;
 
 var chatDiv = document.createElement("div");
 var inputBox = document.createElement("input");
 var outputBox = document.createElement("div");
-var layoutTable = document.createElement("table");
 
-var tblTopRow = document.createElement("tr");
-var tblBottomRow = document.createElement("tr");
-var tblTopCell = document.createElement("td");
-var tblBottomCell = document.createElement("td");
+var fillerDiv = document.createElement("div");
+fillerDiv.style.height = "2000px";
+
+outputBox.appendChild(fillerDiv);
 
 var userToken = "";
+var msgIds = [];
 
 function printUserList(data) {
     var header = document.createElement('p');
@@ -31,18 +26,70 @@ function printUserList(data) {
     outputBox.appendChild(userList);
 }
 
-function handleResponse (data) {
+function isMessageDuplicate(id) {
+    for ( i in msgIds ) {
+        if ( msgIds[i] === id ) { 
+            return true;
+        }
+    }
+    return false;
+}
+
+function clearBuffer() {
+    //msgIds.length = 0;
+    //msgIds = [];
+    while ( outputBox.childNodes.length > 0 ) {
+        outputBox.removeChild( outputBox.firstChild );
+    }
+    outputBox.appendChild(fillerDiv);
+}
+
+function breakout() {
+    var chatWindow = window.open("", "", "width=400,height=320");
+    var newBody = chatWindow.document.getElementsByTagName("body")[0];
+    chatDiv.style.width = "100%";
+    chatDiv.style.height = "100%";
+    chatDiv.style.position = "relative";
+
+    newBody.style.overflow = "hidden";
+    newBody.appendChild(chatDiv);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
+function printMessages(data) {
+    for ( i in data ) {
+        if ( !isMessageDuplicate( data[i]['id'] ) ) {
+            msgIds.push( data[i]['id'] );
+            var p = document.createElement('div');
+            p.textContent = data[i]['msg'];
+            outputBox.appendChild(p);
+        }
+    }
+}
+
+function handleResponse(data) {
     if ( data['token'] ) {
+        var p = document.createElement('div');
+        p.textContent = 'Connected!';
+        outputBox.appendChild(p);
         userToken = data['token'];
         userNameMode = false;
+        document.cookie = 'chatToken=' + data['token'];
+        send("","");
     } else if ( data['error'] ) {
+        clearBuffer();
         outputBox.focus();
         userNameMode = true;
-        outputBox.textContent = data['error'];
+        var p = document.createElement('div');
+        p.textContent = data['error'];
+        outputBox.appendChild(p);
         inputBox.value = "Enter a name";
     } else if ( data['users'] ) {
         printUserList( data['users'] );
+    } else if ( data['messages'] ) {
+        printMessages( data['messages'] );
     }
+    chatDiv.scrollTop = chatDiv.scrollHeight;
 }
 
 function send(cmd, data) {
@@ -57,41 +104,56 @@ function send(cmd, data) {
     xhr.send(null);
 }
 
+function reUp() {
+    send("msg?", "token=" + userToken );
+}
 
-
-tblTopRow.appendChild(tblTopCell);
-tblBottomRow.appendChild(tblBottomCell);
-layoutTable.appendChild(tblTopRow);
-layoutTable.appendChild(tblBottomRow);
-tblTopCell.appendChild(outputBox);
-tblBottomCell.appendChild(inputBox);
-
-layoutTable.style.width = "100%";
-layoutTable.style.height = "100%";
-layoutTable.style.borderCollapse = "collapse";
-tblBottomRow.style.height = "1ex";
+function getCookie(cookie) {
+    var name = cookie + "=";
+    var cookies = document.cookie.split(';');
+    for(i in cookies) {
+        var c = cookies[i];
+        while (c.charAt(0) == ' ') {
+            c = c.substring(1);
+        }
+        if (c.indexOf(name) == 0) {
+            return c.substring(name.length, c.length);
+        }
+    }
+    return false;
+}
 
 
 chatDiv.style.position = "fixed";
+chatDiv.style.overflow = "auto";
 chatDiv.style.width = "40%";
 chatDiv.style.height = "20%";
 chatDiv.style.bottom = "3px";
 chatDiv.style.right = "3px";
+chatDiv.style.padding = "3px";
 chatDiv.style.border = "1px solid #000";
 
 
 outputBox.style.width = "100%";
-outputBox.style.overflow = "auto";
-inputBox.style.cssFloat = "left";
 inputBox.style.width = "100%";
-outputBox.style.padding = "3px";
 
-chatDiv.appendChild(layoutTable);
+
+chatDiv.appendChild(outputBox);
+chatDiv.appendChild(inputBox);
 document.getElementsByTagName("body")[0].appendChild(chatDiv);
 
 
+var introP1 = document.createElement('div');
+var introP2 = document.createElement('div');
 
+introP1.textContent = "Click below to get started!";
+introP2.textContent = "Special commands are 'who', 'clear', and 'breakout'";
+
+outputBox.appendChild(introP1);
+outputBox.appendChild(introP2);
 inputBox.value = "Enter a name";
+
+
 
 inputBox.addEventListener("focus", function (x) {
     if ( userNameMode ) {
@@ -112,6 +174,10 @@ inputBox.addEventListener("keypress", function (ev) {
         } else {
             if ( inputBox.value.trim().toLowerCase() === "who" ) {
                 send("activeUsers", "");
+            } else if ( inputBox.value.trim().toLowerCase() === "clear" ) {
+                clearBuffer();
+            } else if ( inputBox.value.trim().toLowerCase() === "breakout" ) {
+                breakout();
             } else {
                 send("msg?", "token=" + userToken + "&message=" + encodeURIComponent(inputBox.value));
             }
@@ -119,3 +185,18 @@ inputBox.addEventListener("keypress", function (ev) {
         inputBox.value = "";
     }
 });
+
+
+
+
+setInterval(reUp, 1500);
+
+
+
+// Handle page reloads / existing user.
+if ( userNameMode && getCookie('chatToken')) {
+    inputBox.value = "";
+    userNameMode = false;
+    userToken = getCookie('chatToken');
+    reUp();
+}

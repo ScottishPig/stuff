@@ -7,7 +7,7 @@ const crypto = require('crypto');
 
 // Configuration items
 const adminPW = 'mark';
-const clientTimeout = 1800; // in seconds
+const clientTimeout = 60; // in seconds, client pings server every 1.5s
 const bufsize = 50;
 const hostname = '0.0.0.0';
 const port = 3000;
@@ -56,7 +56,7 @@ function clearStaleUsers() {
     var threshold = timestamp() - (clientTimeout * 1000);
     for ( i in users ) {
         if ( users[i]['active'] < threshold ) {
-            data.push('User ' + users[i]['un'] + ' has left.');
+            data.push({'id': makeToken( users[i]['token'], timestamp() ), 'msg': 'User ' + users[i]['un'] + ' has left.' })
             users.splice(i, 1);
         }
     }
@@ -87,7 +87,7 @@ var server = http.createServer((req, res) => {
             var u = getUserFromToken(q['token']);
             u['active'] = timestamp();
             if ( q['message'] && q['message'].trim().length > 0 ) {
-                data.push( u['un'] + ' - ' + q['message']);
+                data.push( {'id': makeToken( q['message'], timestamp() ), 'msg': u['un'] + ' - ' + q['message'] } );
                 while ( data.length > bufsize ) {
                     data.shift();
                 }
